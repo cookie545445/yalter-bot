@@ -9,11 +9,9 @@ extern crate serde_json;
 extern crate url;
 extern crate xml;
 
-use std::fs::File;
-use std::io;
-use std::io::Read;
 use std::sync::Arc;
 use std::thread;
+use std::env;
 
 extern crate discord;
 use discord::{ChannelRef, Discord};
@@ -33,16 +31,6 @@ mod modules {
 	pub mod wolframalpha;
 	pub mod invite;
 	pub mod admin;
-}
-
-fn read_file(filename: &str) -> Result<String, io::Error> {
-	let mut f = try!(File::open(filename));
-	let mut s = String::new();
-
-	match f.read_to_string(&mut s) {
-		Ok(_) => Ok(s),
-		Err(e) => Err(e)
-	}
 }
 
 fn parse_command(message: &str) -> Option<(&str, &str)> {
@@ -119,11 +107,8 @@ fn handle_attachment(bot: Arc<Bot>, message: Arc<Message>) {
 }
 
 fn main() {
-	// Read the token from the file.
-	let token = read_file("token.conf").expect("Error reading token.conf");
-
 	// Log in to the API.
-	let discord = Discord::from_bot_token(&token).expect("Login failed");
+	let discord = Discord::from_bot_token(&env::var("DISCORD_TOKEN").expect("Bad DISCORD_TOKEN")).expect("Login failed");
 
 	let mut modules: Vec<Box<Module>> = Vec::new();
 	modules.push(Box::new(modules::hello::Module::new()));
