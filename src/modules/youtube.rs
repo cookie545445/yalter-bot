@@ -53,7 +53,7 @@ impl<'a> module::Module for Module<'a> {
 	fn command_help_message(&self, id: u32) -> &'static str {
 		match id {
 			x if x == Commands::Embed as u32 =>
-				"`!youtube, !yt search term`: Searches YouTube for the given video and embeds it in chat",
+				"`!yt search term`: Searches YouTube for the given video and embeds it in chat",
 			_ => "invalid id"
 		}
 	}
