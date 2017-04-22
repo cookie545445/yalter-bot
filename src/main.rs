@@ -8,6 +8,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate url;
 extern crate xml;
+extern crate openssl;
 
 use std::sync::Arc;
 use std::thread;
@@ -31,6 +32,7 @@ mod modules {
 	pub mod wolframalpha;
 	pub mod invite;
 	pub mod admin;
+	pub mod youtube;
 }
 
 fn parse_command(message: &str) -> Option<(&str, &str)> {
@@ -116,6 +118,7 @@ fn main() {
 	modules.push(Box::new(modules::fun::Module::new()));
 	modules.push(Box::new(modules::speedruncom::Module::new()));
 	modules.push(Box::new(modules::admin::Module::new()));
+	modules.push(Box::new(modules::youtube::Module::new()));
 
 	// The Wolfram!Alpha module requires an app-id to work.
 	// Place your app-id into the appropriate spot inside modules/wolframalpha.rs.

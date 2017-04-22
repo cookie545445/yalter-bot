@@ -19,3 +19,4 @@ serde = "0.8"
 serde_json = "0.8"
 url = { git = "https://github.com/servo/rust-url" }
 xml-rs = "0.3"
+openssl = "0.7"
