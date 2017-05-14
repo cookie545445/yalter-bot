@@ -9,13 +9,13 @@ use xml;
 use xml::reader::XmlEvent;
 
 pub struct Module<'a> {
-	commands: HashMap<u32, &'a [&'a str]>
+	commands: HashMap<u32, &'a [&'a str]>,
+	pub api_key: String
 }
 
 lazy_static! {
 	static ref WOLFRAMALPHA_API_BASE: Url = Url::parse("http://api.wolframalpha.com/v2/query").unwrap();
 }
-const WOLFRAMALPHA_APPID: &'static str = "INSERT YOUR APPID HERE";
 
 enum Commands {
 	WA = 0
@@ -37,7 +37,7 @@ impl<'a> module::Module for Module<'a> {
 		static WA: [&'static str; 2] = [ "wolphramalpha", "wa" ];
 		let mut map: HashMap<u32, &[&str]> = HashMap::new();
 		map.insert(Commands::WA as u32, &WA);
-		Module { commands: map }
+		Module { commands: map, api_key: String::new() }
 	}
 
 	fn name(&self) -> &'static str {
@@ -65,7 +65,7 @@ impl<'a> module::Module for Module<'a> {
 
 		let mut url = WOLFRAMALPHA_API_BASE.clone();
 		url.query_pairs_mut()
-			.append_pair("appid", WOLFRAMALPHA_APPID)
+			.append_pair("appid", self.api_key.as_str())
 			.append_pair("input", text);
 
 		println!("URL: {}", url.as_str());

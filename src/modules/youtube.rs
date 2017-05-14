@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use hyper;
 use hyper::Client;
 use hyper::net::{OpensslClient, HttpsConnector};
-use openssl::ssl;
 use module;
-use std::env;
 use std::io::Read;
 use discord::model::Message;
 use bot::Bot;
@@ -14,7 +12,7 @@ use serde_json::Value;
 
 pub struct Module<'a> {
 	commands: HashMap<u32, &'a [&'a str]>,
-	api_key: String
+	pub api_key: String
 }
 
 enum Commands {
@@ -23,11 +21,10 @@ enum Commands {
 
 impl<'a> module::Module for Module<'a> {
 	fn new() -> Self {
-		let key = env::var("GOOGLE_API_KEY").unwrap();
 		let mut map: HashMap<u32, &[&str]> = HashMap::new();
 		static EMBED: [&'static str; 2] = [ "youtube", "yt" ];
 		map.insert(Commands::Embed as u32, &EMBED);
-		Module { commands: map, api_key: key }
+		Module { commands: map, api_key: String::new() }
 	}
 
 	fn name(&self) -> &'static str {
@@ -66,7 +63,6 @@ impl<'a> module::Module for Module<'a> {
 				url.push_str("&q=");
 				url.push_str(text);
 				let parsed_url = hyper::Url::parse(url.as_str()).unwrap();
-				println!("GETtting from {}...", url);
 				let tls = OpensslClient::default();
 				let connector = HttpsConnector::new(tls);
 				let client = Client::with_connector(connector);

@@ -30,3 +30,7 @@ pub trait Module : Send + Sync {
 	fn handle_attachment(&self, _bot: &Bot, _message: &Message) {
 	}
 }
+
+pub trait KeyedModule: Send + Sync {
+	fn set_key(&self, key: &str);
+}

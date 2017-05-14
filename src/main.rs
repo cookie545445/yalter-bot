@@ -8,11 +8,11 @@ extern crate serde;
 extern crate serde_json;
 extern crate url;
 extern crate xml;
-extern crate openssl;
 
 use std::sync::Arc;
 use std::thread;
-use std::env;
+use std::fs::File;
+use std::path::Path;
 
 extern crate discord;
 use discord::{ChannelRef, Discord};
@@ -109,8 +109,17 @@ fn handle_attachment(bot: Arc<Bot>, message: Arc<Message>) {
 }
 
 fn main() {
+	let path = Path::new("./bot.json");
+	let config = File::open(&path).expect("No bot.json found");
+	let json_result = serde_json::from_reader::<File, serde_json::Value>(config);
+
+	if let Err(e) = json_result {
+		panic!("{}", e);
+	}
+	let json = json_result.unwrap();
+	
 	// Log in to the API.
-	let discord = Discord::from_bot_token(&env::var("DISCORD_TOKEN").expect("Bad DISCORD_TOKEN")).expect("Login failed");
+	let discord = Discord::from_bot_token(json.pointer("/discord_token").unwrap().as_str().unwrap()).expect("Login failed");
 
 	let mut modules: Vec<Box<Module>> = Vec::new();
 	modules.push(Box::new(modules::hello::Module::new()));
@@ -118,11 +127,16 @@ fn main() {
 	modules.push(Box::new(modules::fun::Module::new()));
 	modules.push(Box::new(modules::speedruncom::Module::new()));
 	modules.push(Box::new(modules::admin::Module::new()));
-	modules.push(Box::new(modules::youtube::Module::new()));
 
-	// The Wolfram!Alpha module requires an app-id to work.
-	// Place your app-id into the appropriate spot inside modules/wolframalpha.rs.
-	// modules.push(Box::new(modules::wolframalpha::Module::new()));
+	let google_key = json.pointer("/google_key").unwrap().as_str().unwrap();
+	let mut youtube = modules::youtube::Module::new();
+	youtube.api_key = String::from(google_key);
+	modules.push(Box::new(youtube));
+
+    let wolfram_key = json.pointer("/wolfram_key").unwrap().as_str().unwrap();
+    let mut wolfram = modules::wolframalpha::Module::new();
+    wolfram.api_key = String::from(wolfram_key);
+    modules.push(Box::new(wolfram));
 
 	// The Invite module requires a bot client ID to work.
 	// Get it from https://discordapp.com/developers/applications/me
