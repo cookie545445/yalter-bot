@@ -129,14 +129,18 @@ fn main() {
 	modules.push(Box::new(modules::admin::Module::new()));
 
 	let google_key = json.pointer("/google_key").unwrap().as_str().unwrap();
-	let mut youtube = modules::youtube::Module::new();
-	youtube.api_key = String::from(google_key);
-	modules.push(Box::new(youtube));
+	if google_key != "" {
+	    let mut youtube = modules::youtube::Module::new();
+    	youtube.api_key = String::from(google_key);
+    	modules.push(Box::new(youtube));
+	}
 
     let wolfram_key = json.pointer("/wolfram_key").unwrap().as_str().unwrap();
-    let mut wolfram = modules::wolframalpha::Module::new();
-    wolfram.api_key = String::from(wolfram_key);
-    modules.push(Box::new(wolfram));
+    if wolfram_key != "" {
+        let mut wolfram = modules::wolframalpha::Module::new();
+        wolfram.api_key = String::from(wolfram_key);
+        modules.push(Box::new(wolfram));
+    }
 
 	// The Invite module requires a bot client ID to work.
 	// Get it from https://discordapp.com/developers/applications/me
