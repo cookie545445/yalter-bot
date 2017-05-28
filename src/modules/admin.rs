@@ -204,9 +204,9 @@ impl<'a> module::Module for Module<'a> {
 	fn handle(&self, bot: &Bot, message: &Message, id: u32, text: &str) {
 		let state = bot.get_state().read().unwrap();
 
-		let has_permission = match state.find_channel(&message.channel_id) {
+		let has_permission = match state.find_channel(message.channel_id) {
 			Some(ChannelRef::Private(_)) => {
-				bot.send(&message.channel_id, "Sorry, but you cannot use the admin commands through PMs. They don't make much sense here anyways.");
+				bot.send(message.channel_id, "Sorry, but you cannot use the admin commands through PMs. They don't make much sense here anyways.");
 				return;
 			},
 
@@ -225,7 +225,7 @@ impl<'a> module::Module for Module<'a> {
 
 						found
 					} else {
-						bot.send(&message.channel_id, "Sorry, I couldn't get your member info.");
+						bot.send(message.channel_id, "Sorry, I couldn't get your member info.");
 						return;
 					}
 				} else {
@@ -234,12 +234,12 @@ impl<'a> module::Module for Module<'a> {
 			},
 
 			Some(ChannelRef::Group(_)) => {
-				bot.send(&message.channel_id, "Admin commands in groups? Hm.");
+				bot.send(message.channel_id, "Admin commands in groups? Hm.");
 				return;
 			},
 
 			None => {
-				bot.send(&message.channel_id, "Huh, I couldn't get this channel's info for some reason. Try again I guess?");
+				bot.send(message.channel_id, "Huh, I couldn't get this channel's info for some reason. Try again I guess?");
 				return;
 			}
 		};
@@ -262,7 +262,7 @@ impl<'a> Module<'a> {
 	fn handle_admin(&self, bot: &Bot, message: &Message, text: &str, state: RwLockReadGuard<State>) {
 		if let Some(caps) = ADMIN_REGEX.captures(&text.to_lowercase()) {
 			// No need to recheck, we did that in handle().
-			let server = match state.find_channel(&message.channel_id).unwrap() {
+			let server = match state.find_channel(message.channel_id).unwrap() {
 				ChannelRef::Public(server, _) => server,
 				_ => {
 					panic!("Did I just witness some memory corruption?");
@@ -284,9 +284,9 @@ impl<'a> Module<'a> {
 							});
 						}
 
-						bot.send(&message.channel_id, &buf);
+						bot.send(message.channel_id, &buf);
 					} else {
-						bot.send(&message.channel_id, "There are no admin roles yet.");
+						bot.send(message.channel_id, "There are no admin roles yet.");
 					}
 				},
 
@@ -294,7 +294,7 @@ impl<'a> Module<'a> {
 					if message.mention_roles.len() > 0 {
 						self.memory.write().unwrap().add_admin_roles(server.id, &message.mention_roles);
 					} else {
-						bot.send(&message.channel_id, "You didn't mention any roles.");
+						bot.send(message.channel_id, "You didn't mention any roles.");
 					}
 				},
 
@@ -302,20 +302,20 @@ impl<'a> Module<'a> {
 					if message.mention_roles.len() > 0 {
 						self.memory.write().unwrap().remove_admin_roles(server.id, &message.mention_roles);
 					} else {
-						bot.send(&message.channel_id, "You didn't mention any roles.");
+						bot.send(message.channel_id, "You didn't mention any roles.");
 					}
 				},
 
 				_ => {
 					bot.send(
-						&message.channel_id,
+						message.channel_id,
 						<Module as module::Module>::command_help_message(&self, Commands::Admin as u32)
 					);
 				}
 			}
 		} else {
 			bot.send(
-				&message.channel_id,
+				message.channel_id,
 				<Module as module::Module>::command_help_message(&self, Commands::Admin as u32)
 			);
 		}
@@ -336,11 +336,11 @@ impl<'a> Module<'a> {
 			                                             .collect::<Vec<MessageId>>()) {
 				bot.delete_messages(message.channel_id, &recent_message_ids);
 			} else {
-				bot.send(&message.channel_id, "Error getting the recent messages.");
+				bot.send(message.channel_id, "Error getting the recent messages.");
 			}
 		} else {
 			bot.send(
-				&message.channel_id,
+				message.channel_id,
 				<Module as module::Module>::command_help_message(&self, Commands::Nuke as u32)
 			);
 		}

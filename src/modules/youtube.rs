@@ -76,13 +76,13 @@ impl<'a> module::Module for Module<'a> {
 					let json_root = serde_json::from_str::<Value>(json.as_str()).unwrap();
 					let video_id_ = json_root.pointer("/items/0/id/videoId").unwrap();
 					let video_id = video_id_.as_str().unwrap();
-					bot.send(&message.channel_id, format!("https://youtu.be/{}", video_id).as_str());
+					bot.send(message.channel_id, format!("https://youtu.be/{}", video_id).as_str());
 				} else {
-					bot.send(&message.channel_id, "Google doesn't want you to do that");
+					bot.send(message.channel_id, "Google doesn't want you to do that");
 				}
 			}
 			_ => {
-				bot.send(&message.channel_id, "Invalid ID");
+				bot.send(message.channel_id, "Invalid ID");
 			}
 		}
 	}

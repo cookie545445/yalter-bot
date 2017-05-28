@@ -152,7 +152,7 @@ impl<'a> module::Module for Module<'a> {
 
 impl<'a> Module<'a> {
 	fn handle_wr(&self, bot: &Bot, message: &Message, text: &str) {
-		bot.send(&message.channel_id, match get_wrs(&text) {
+		bot.send(message.channel_id, match get_wrs(&text) {
 			Ok((game, wrs)) => {
 				if wrs.len() == 0 {
 					format!("**{}** has no world records. :|", game)
@@ -194,7 +194,7 @@ impl<'a> Module<'a> {
 
 	fn handle_pb(&self, bot: &Bot, message: &Message, text: &str) {
 		if let Some(caps) = PB_REGEX.captures(text) {
-			bot.send(&message.channel_id, match get_pbs(caps.at(1).unwrap(), caps.at(2).unwrap()) {
+			bot.send(message.channel_id, match get_pbs(caps.at(1).unwrap(), caps.at(2).unwrap()) {
 				Ok((player, game, mut pbs)) => if pbs.len() == 0 {
 					format!("**{}** has no personal bests in **{}**. :|", player, game)
 				} else {
@@ -239,7 +239,7 @@ impl<'a> Module<'a> {
 			}.as_str());
 		} else {
 			bot.send(
-				&message.channel_id,
+				message.channel_id,
 				<Module as module::Module>::command_help_message(&self, Commands::PB as u32)
 			);
 		}
