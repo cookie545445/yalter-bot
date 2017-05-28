@@ -95,7 +95,6 @@ fn handle_command(bot: Arc<Bot>, message: Arc<Message>, command: &str, text: &st
 		let text_copy = text.to_string();
 
 		thread::spawn(move || {
-            println!("Thread {:?} dispatched for command {}", std::thread::current().name(), command);
 			bot.get_modules()[i].handle(&bot, &message, id, &text_copy);
 		});
 	}
