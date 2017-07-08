@@ -33,6 +33,7 @@ mod modules {
 	pub mod invite;
 	pub mod admin;
 	pub mod youtube;
+    pub mod spotify;
 }
 
 fn parse_command(message: &str) -> Option<(&str, &str)> {
@@ -127,6 +128,13 @@ fn main() {
 	modules.push(Box::new(modules::fun::Module::new()));
 	modules.push(Box::new(modules::speedruncom::Module::new()));
 	modules.push(Box::new(modules::admin::Module::new()));
+
+    let spotify_key = json.pointer("/spotify_key").unwrap().as_str().unwrap();
+    if spotify_key != "" {
+        let mut spotify = modules::spotify::Module::new();
+        spotify.api_key = String::from(spotify_key);
+        modules.push(Box::new(spotify));
+    }
 
 	let google_key = json.pointer("/google_key").unwrap().as_str().unwrap();
 	if google_key != "" {

@@ -59,7 +59,7 @@ impl<'a> module::Module for Module<'a> {
 		match id {
 			x if x == Commands::Embed as u32 => {
 				let mut url = String::from("https://www.googleapis.com/youtube/v3/search?part=snippet&key=");
-				url.push_str(self.api_key.as_str());
+				url.push_str(&self.api_key);
 				url.push_str("&q=");
 				url.push_str(text);
 				let parsed_url = hyper::Url::parse(url.as_str()).unwrap();
