@@ -64,7 +64,7 @@ impl<'a> module::Module for Module<'a> {
     fn handle(&self, bot: &Bot, message: &Message, id: u32, text: &str) {
         match id {
             x if x == Commands::Search as u32 => {
-                let mut args = String::new();
+                let args;
                 let mut url = String::from("https://api.spotify.com/v1/search?type=");
                 let req_type = match text.split_whitespace().nth(0) {
                     Some(v) => v,
