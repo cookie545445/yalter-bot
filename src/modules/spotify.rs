@@ -11,24 +11,37 @@ use bot::Bot;
 use serde_json;
 use serde_json::Value;
 
-pub struct Module<'a> {
+pub struct Module<'a, 'b> {
     commands: HashMap<u32, &'a [&'a str]>,
-    pub api_key: String,
+    api_key: &'b str,
 }
 
 enum Commands {
     Search = 0,
 }
 
-impl<'a> module::Module for Module<'a> {
-    fn new() -> Self {
+impl<'a, 'b> module::Module for Module<'a, 'b> {
+    fn new() -> Result<Box<module::Module>, String> {
         let mut map: HashMap<u32, &[&str]> = HashMap::new();
         static SEARCH: [&'static str; 2] = ["spotify", "sp"];
         map.insert(Commands::Search as u32, &SEARCH);
-        Module {
-            commands: map,
-            api_key: String::new(),
-        }
+        let key = {
+            let temp;
+            if let Some(v) = ::CONF.pointer("/spotify_key") {
+                if let Some(key) = v.as_str() {
+                    temp = key
+                } else {
+                    return Err("failed to get spotify key".into());
+                }
+            } else {
+                return Err("failed to get spotify key".into());
+            }
+            temp
+        };
+        Ok(Box::new(Module {
+                        commands: map,
+                        api_key: key,
+                    }))
     }
 
     fn name(&self) -> &'static str {
@@ -45,18 +58,14 @@ impl<'a> module::Module for Module<'a> {
 
     fn command_description(&self, id: u32) -> &'static str {
         match id {
-            x if x == Commands::Search as u32 => {
-                "`!spotify, !sp {type} search_term`: Searches Spotify"
-            }
+            x if x == Commands::Search as u32 => "`!spotify, !sp {type} search_term`: Searches Spotify",
             _ => "invalid id",
         }
     }
 
     fn command_help_message(&self, id: u32) -> &'static str {
         match id {
-            x if x == Commands::Search as u32 => {
-                "`!sp ?(track|artist|album|playlist) search_term`: Searches Spotify for the given item and embeds it in chat"
-            }
+            x if x == Commands::Search as u32 => "`!sp ?(track|artist|album|playlist) search_term`: Searches Spotify for the given item and embeds it in chat",
             _ => "invalid id",
         }
     }
@@ -97,8 +106,8 @@ impl<'a> module::Module for Module<'a> {
                 let tls = OpensslClient::default();
                 let connector = HttpsConnector::new(tls);
                 let client = Client::with_connector(connector);
-                println!("{}", self.api_key.as_str());
-                let header = Authorization(Bearer { token: self.api_key.clone() });
+                println!("{}", self.api_key);
+                let header = Authorization(Bearer { token: self.api_key.to_owned() });
                 println!("header: {:?}", header);
                 let mut response = client.get(parsed_url).header(header).send().unwrap();
                 let status = response.status;
@@ -113,7 +122,13 @@ impl<'a> module::Module for Module<'a> {
                     bot.send(message.channel_id, item_url);
                 } else {
                     bot.send(message.channel_id,
-                             &format!("Spotify doesn't want you to do that: {:?}\n{}", status, json_root.pointer("/error/message").unwrap().as_str().unwrap()));
+                             &format!("Spotify doesn't want you to do that: {:?}\n{}",
+                                     status,
+                                     json_root
+                                         .pointer("/error/message")
+                                         .unwrap()
+                                         .as_str()
+                                         .unwrap()));
                 }
             }
             _ => {

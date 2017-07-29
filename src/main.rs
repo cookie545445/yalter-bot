@@ -1,10 +1,12 @@
+extern crate circular_queue;
 extern crate hyper;
 #[macro_use]
 extern crate lazy_static;
-extern crate libc;
 extern crate rand;
 extern crate regex;
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_json;
 extern crate url;
 extern crate xml;
@@ -12,7 +14,6 @@ extern crate xml;
 use std::sync::Arc;
 use std::thread;
 use std::fs::File;
-use std::path::Path;
 
 extern crate discord;
 use discord::{ChannelRef, Discord};
@@ -24,246 +25,274 @@ use module::Module;
 mod bot;
 use bot::*;
 
+lazy_static! {
+    static ref CONF: serde_json::value::Value = {
+        let config = File::open("bot.json").or_else(|_| File::open(std::env::args().nth(1).expect("No bot.json found"))).expect("No bot.json found");
+        let json_result = serde_json::from_reader::<File, serde_json::Value>(config);
+
+        match json_result {
+            Ok(v) => v,
+            Err(e) => panic!("JSON error: {}", e),
+        }
+    };
+}
+
 mod modules {
-	pub mod hello;
-	pub mod modules;
-	pub mod fun;
-	pub mod speedruncom;
-	pub mod wolframalpha;
-	pub mod invite;
-	pub mod admin;
-	pub mod youtube;
+    pub mod hello;
+    pub mod modules;
+    pub mod fun;
+    pub mod speedruncom;
+    pub mod wolframalpha;
+    pub mod invite;
+    pub mod admin;
+    pub mod youtube;
     pub mod spotify;
 }
 
 fn parse_command(message: &str) -> Option<(&str, &str)> {
-	// Commands must start with a ! and are at least one symbol long
-	// (excluding the exclamation mark).
-	if !message.starts_with('!') || message.len() == 1 {
-		return None;
-	}
+    // Commands must start with a ! and are at least one symbol long
+    // (excluding the exclamation mark).
+    if !message.starts_with('!') || message.len() == 1 {
+        return None;
+    }
 
-	// Chop off the !.
-	let message = message.split_at(1).1;
+    // Chop off the !.
+    let message = message.split_at(1).1;
 
-	// Separate the command from the arguments.
-	match message.find(char::is_whitespace) {
-		Some(pos) => {
-			// Commands cannot be empty.
-			if pos == 0 {
-				return None;
-			}
+    // Separate the command from the arguments.
+    match message.find(char::is_whitespace) {
+        Some(pos) => {
+            // Commands cannot be empty.
+            if pos == 0 {
+                return None;
+            }
 
-			// a is the command excluding the !, b is the rest of the message.
-			let (a, b) = message.split_at(pos);
+            // a is the command excluding the !, b is the rest of the message.
+            let (a, b) = message.split_at(pos);
 
-			// Chop off the first whitespace character.
-			// To do that we need to figure out where the next character is at.
-			let mut indices = b.char_indices();
-			// We know that there is at least one character in b (the whitespace).
-			indices.next();
+            // Chop off the first whitespace character.
+            // To do that we need to figure out where the next character is at.
+            let mut indices = b.char_indices();
+            // We know that there is at least one character in b (the whitespace).
+            indices.next();
 
-			// Check if there are more characters than that one whitespace.
-			if let Some((x, _)) = indices.next() {
-				Some((a, b.split_at(x).1))
-			} else {
-				Some((a, ""))
-			}
-		},
+            // Check if there are more characters than that one whitespace.
+            if let Some((x, _)) = indices.next() {
+                Some((a, b.split_at(x).1))
+            } else {
+                Some((a, ""))
+            }
+        }
 
-		// No whitespace character means no arguments.
-		None => Some((message, ""))
-	}
+        // No whitespace character means no arguments.
+        None => Some((message, "")),
+    }
 }
 
 fn handle_command(bot: Arc<Bot>, message: Arc<Message>, command: &str, text: &str) {
-	let command = command.to_lowercase();
+    let command = command.to_lowercase();
 
-	let mut index = None;
+    let mut index = None;
 
-	'outer: for i in 0..bot.get_modules().len() {
-		let module = &bot.get_modules()[i];
+    'outer: for i in 0..bot.get_modules().len() {
+        let module = &bot.get_modules()[i];
 
-		for (&id, &cmds) in module.commands() {
-			if let Some(_) = cmds.iter().find(|&&x| x == command) {
-				index = Some((i, id));
-				break 'outer;
-			}
-		}
-	}
+        for (&id, &cmds) in module.commands() {
+            if let Some(_) = cmds.iter().find(|&&x| x == command) {
+                index = Some((i, id));
+                break 'outer;
+            }
+        }
+    }
 
-	if let Some((i, id)) = index {
-		let text_copy = text.to_string();
+    if let Some((i, id)) = index {
+        let text_copy = text.to_string();
 
-		thread::spawn(move || {
-			bot.get_modules()[i].handle(&bot, &message, id, &text_copy);
-		});
-	}
+        thread::spawn(move || { bot.get_modules()[i].handle(&bot, &message, id, &text_copy); });
+    }
 }
 
 fn handle_attachment(bot: Arc<Bot>, message: Arc<Message>) {
-	thread::spawn(move || {
-		for module in bot.get_modules() {
-			module.handle_attachment(&bot, &message);
-		}
-	});
+    thread::spawn(move || for module in bot.get_modules() {
+                      module.handle_attachment(&bot, &message);
+                  });
+}
+
+fn handle_message_update(bot: Arc<Bot>, channel_id: ChannelId, id: MessageId) {
+    thread::spawn(move || for module in bot.get_modules() {
+                      module.handle_message_update(&bot, channel_id, id);
+                  });
+}
+
+fn handle_message_delete(bot: Arc<Bot>, channel_id: ChannelId, id: MessageId) {
+    thread::spawn(move || for module in bot.get_modules() {
+                      module.handle_message_delete(&bot, channel_id, id);
+                  });
 }
 
 fn main() {
-	let path = Path::new("./bot.json");
-	let config = File::open(&path).expect("No bot.json found");
-	let json_result = serde_json::from_reader::<File, serde_json::Value>(config);
 
-	if let Err(e) = json_result {
-		panic!("{}", e);
-	}
-	let json = json_result.unwrap();
-	
-	// Log in to the API.
-	let discord = Discord::from_bot_token(json.pointer("/discord_token").unwrap().as_str().unwrap()).expect("Login failed");
+    // Log in to the API.
+    let discord = Discord::from_bot_token(CONF.pointer("/discord_token").unwrap().as_str().unwrap()).expect("Login failed");
 
-	let mut modules: Vec<Box<Module>> = Vec::new();
-	modules.push(Box::new(modules::hello::Module::new()));
-	modules.push(Box::new(modules::modules::Module::new()));
-	modules.push(Box::new(modules::fun::Module::new()));
-	modules.push(Box::new(modules::speedruncom::Module::new()));
-	modules.push(Box::new(modules::admin::Module::new()));
+    let modules = vec![modules::hello::Module::new(),
+                       modules::modules::Module::new(),
+                       modules::fun::Module::new(),
+                       modules::speedruncom::Module::new(),
+                       modules::admin::Module::new(),
+                       modules::wolframalpha::Module::new(),
+                       modules::invite::Module::new(),
+                       modules::youtube::Module::new(),
+                       modules::spotify::Module::new()]
+            .into_iter()
+            .filter_map(|m| match m {
+                            Ok(m) => Some(m),
+                            Err(err) => {
+                                println!("{}", err);
+                                None
+                            }
+                        })
+            .collect();
 
-    let spotify_key = json.pointer("/spotify_key").unwrap().as_str().unwrap();
-    if spotify_key != "" {
-        let mut spotify = modules::spotify::Module::new();
-        spotify.api_key = String::from(spotify_key);
-        modules.push(Box::new(spotify));
+    let mut bot = BotThreadUnsafe::new(discord, modules);
+
+    // Main loop.
+    loop {
+        let event = match bot.receive_event() {
+            Some(event) => event,
+            None => {
+                break;
+            }
+        };
+
+        match event {
+            Event::MessageCreate(message) => {
+                let state = bot.get_sync().get_state().read().unwrap();
+
+                // Skip the message if it comes from us.
+                if message.author.id == state.user().id {
+                    continue;
+                }
+
+                match state.find_channel(message.channel_id) {
+                    Some(ChannelRef::Public(server, channel)) => {
+                        println!("[`{}` `#{}`] `{}`: `{}`",
+                                 server.name,
+                                 channel.name,
+                                 message.author.name,
+                                 message.content);
+                    }
+
+                    Some(ChannelRef::Group(group)) => {
+                        println!("[Group `{}`] `{}`: `{}`",
+                                 group.name(),
+                                 message.author.name,
+                                 message.content);
+                    }
+
+                    Some(ChannelRef::Private(channel)) => {
+                        if message.author.name == channel.recipient.name {
+                            println!("[Private] `{}`: `{}`", message.author.name, message.content);
+                        } else {
+                            println!("[Private] To `{}`: `{}`",
+                                     channel.recipient.name,
+                                     message.content);
+                        }
+                    }
+
+                    None => {
+                        println!("[Unknown Channel] `{}`: `{}`",
+                                 message.author.name,
+                                 message.content)
+                    }
+                }
+
+                let message_shared = Arc::new(message);
+
+                // Handle the commands.
+                if let Some((command, text)) = parse_command(&message_shared.content) {
+                    handle_command(bot.get_sync().clone(),
+                                   message_shared.clone(),
+                                   command,
+                                   text);
+                }
+
+                // Handle the attachments.
+                if message_shared.attachments.len() > 0 {
+                    handle_attachment(bot.get_sync().clone(), message_shared);
+                }
+            }
+
+            Event::MessageUpdate { id, channel_id, .. } => {
+                handle_message_update(bot.get_sync().clone(), channel_id, id);
+            }
+
+            Event::MessageDelete {
+                channel_id,
+                message_id,
+            } => {
+                handle_message_delete(bot.get_sync().clone(), channel_id, message_id);
+            }
+
+            _ => {} // Discard other events.
+        }
     }
-
-	let google_key = json.pointer("/google_key").unwrap().as_str().unwrap();
-	if google_key != "" {
-	    let mut youtube = modules::youtube::Module::new();
-    	youtube.api_key = String::from(google_key);
-    	modules.push(Box::new(youtube));
-	}
-
-    let wolfram_key = json.pointer("/wolfram_key").unwrap().as_str().unwrap();
-    if wolfram_key != "" {
-        let mut wolfram = modules::wolframalpha::Module::new();
-        wolfram.api_key = String::from(wolfram_key);
-        modules.push(Box::new(wolfram));
-    }
-
-	// The Invite module requires a bot client ID to work.
-	// Get it from https://discordapp.com/developers/applications/me
-	// Place your client ID into the appropriate spot inside modules/invite.rs.
-	// modules.push(Box::new(modules::invite::Module::new()));
-
-	let mut bot = BotThreadUnsafe::new(discord, modules);
-
-	// Main loop.
-	loop {
-		let event = match bot.receive_event() {
-			Some(event) => event,
-			None => {
-				break;
-			}
-		};
-
-		match event {
-			Event::MessageCreate(message) => {
-				let state = bot.get_sync().get_state().read().unwrap();
-
-				// Skip the message if it comes from us.
-				if message.author.id == state.user().id {
-					continue
-				}
-
-				match state.find_channel(message.channel_id) {
-					Some(ChannelRef::Public(server, channel)) => {
-						println!("[`{}` `#{}`] `{}`: `{}`", server.name, channel.name, message.author.name, message.content);
-					}
-
-					Some(ChannelRef::Group(group)) => {
-						println!("[Group `{}`] `{}`: `{}`", group.name(), message.author.name, message.content);
-					}
-
-					Some(ChannelRef::Private(channel)) => {
-						if message.author.name == channel.recipient.name {
-							println!("[Private] `{}`: `{}`", message.author.name, message.content);
-						} else {
-							println!("[Private] To `{}`: `{}`", channel.recipient.name, message.content);
-						}
-					}
-
-					None => println!("[Unknown Channel] `{}`: `{}`", message.author.name, message.content)
-				}
-
-				let message_shared = Arc::new(message);
-
-				// Handle the commands.
-				if let Some((command, text)) = parse_command(&message_shared.content) {
-					handle_command(bot.get_sync().clone(), message_shared.clone(), command, text);
-				}
-
-				// Handle the attachments.
-				if message_shared.attachments.len() > 0 {
-					handle_attachment(bot.get_sync().clone(), message_shared);
-				}
-			}
-
-			_ => {} // Discard other events.
-		}
-	}
 }
 
 #[cfg(test)]
 mod tests {
-	use super::parse_command;
+    use super::parse_command;
 
-	#[test]
-	fn parse_command_noargs() {
-		assert_eq!(Some(("command", "")), parse_command("!command"));
-	}
+    #[test]
+    fn parse_command_noargs() {
+        assert_eq!(Some(("command", "")), parse_command("!command"));
+    }
 
-	#[test]
-	fn parse_command_noargs_onespace() {
-		assert_eq!(Some(("command", "")), parse_command("!command "));
-	}
+    #[test]
+    fn parse_command_noargs_onespace() {
+        assert_eq!(Some(("command", "")), parse_command("!command "));
+    }
 
-	#[test]
-	fn parse_command_noargs_twospaces() {
-		assert_eq!(Some(("command", " ")), parse_command("!command  "));
-	}
+    #[test]
+    fn parse_command_noargs_twospaces() {
+        assert_eq!(Some(("command", " ")), parse_command("!command  "));
+    }
 
-	#[test]
-	fn parse_command_usual() {
-		assert_eq!(Some(("my_cmd", "a bunch of arguments")), parse_command("!my_cmd a bunch of arguments"));
-	}
+    #[test]
+    fn parse_command_usual() {
+        assert_eq!(Some(("my_cmd", "a bunch of arguments")),
+                   parse_command("!my_cmd a bunch of arguments"));
+    }
 
-	#[test]
-	fn parse_command_newline() {
-		assert_eq!(Some(("test", "arg")), parse_command("!test\narg"));
-	}
+    #[test]
+    fn parse_command_newline() {
+        assert_eq!(Some(("test", "arg")), parse_command("!test\narg"));
+    }
 
-	#[test]
-	fn parse_command_newlines() {
-		assert_eq!(Some(("blah", "\n\nargs\nare\nhere\n\n")), parse_command("!blah\n\n\nargs\nare\nhere\n\n"));
-	}
+    #[test]
+    fn parse_command_newlines() {
+        assert_eq!(Some(("blah", "\n\nargs\nare\nhere\n\n")),
+                   parse_command("!blah\n\n\nargs\nare\nhere\n\n"));
+    }
 
-	#[test]
-	fn parse_command_notcommand() {
-		assert_eq!(None, parse_command("Hello"));
-	}
+    #[test]
+    fn parse_command_notcommand() {
+        assert_eq!(None, parse_command("Hello"));
+    }
 
-	#[test]
-	fn parse_command_empty_command() {
-		assert_eq!(None, parse_command("!"));
-	}
+    #[test]
+    fn parse_command_empty_command() {
+        assert_eq!(None, parse_command("!"));
+    }
 
-	#[test]
-	fn parse_command_empty_command_with_arguments() {
-		assert_eq!(None, parse_command("! blah"));
-	}
+    #[test]
+    fn parse_command_empty_command_with_arguments() {
+        assert_eq!(None, parse_command("! blah"));
+    }
 
-	#[test]
-	fn parse_command_unicode() {
-		assert_eq!(Some(("КрутаяКоманда1337💖忠犬ハ", "チ公Да")), parse_command("!КрутаяКоманда1337💖忠犬ハ チ公Да"));
-	}
+    #[test]
+    fn parse_command_unicode() {
+        assert_eq!(Some(("КрутаяКоманда1337💖忠犬ハ", "チ公Да")),
+                   parse_command("!КрутаяКоманда1337💖忠犬ハ チ公Да"));
+    }
 }

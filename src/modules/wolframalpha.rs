@@ -8,9 +8,9 @@ use url::Url;
 use xml;
 use xml::reader::XmlEvent;
 
-pub struct Module<'a> {
-	commands: HashMap<u32, &'a [&'a str]>,
-	pub api_key: String
+pub struct Module<'a, 'b> {
+    commands: HashMap<u32, &'a [&'a str]>,
+    api_key: &'b str,
 }
 
 lazy_static! {
@@ -18,60 +18,76 @@ lazy_static! {
 }
 
 enum Commands {
-	WA = 0
+    WA = 0,
 }
 
 struct Pod {
-	image_url: Option<String>,
-	plaintext: String
+    image_url: Option<String>,
+    plaintext: String,
 }
 
 #[derive(PartialEq)]
 enum CurrentPod {
-	InputInterpretation,
-	Results
+    InputInterpretation,
+    Results,
 }
 
-impl<'a> module::Module for Module<'a> {
-	fn new() -> Self {
-		static WA: [&'static str; 2] = [ "wolphramalpha", "wa" ];
-		let mut map: HashMap<u32, &[&str]> = HashMap::new();
-		map.insert(Commands::WA as u32, &WA);
-		Module { commands: map, api_key: String::new() }
-	}
+impl<'a, 'b> module::Module for Module<'a, 'b> {
+    fn new() -> Result<Box<module::Module>, String> {
+        static WA: [&'static str; 2] = ["wolphramalpha", "wa"];
+        let mut map: HashMap<u32, &[&str]> = HashMap::new();
+        map.insert(Commands::WA as u32, &WA);
+        let key = {
+            let temp;
+            if let Some(v) = ::CONF.pointer("/wolfram_key") {
+                if let Some(key) = v.as_str() {
+                    temp = key
+                } else {
+                    return Err("failed to get wolfram key".into());
+                }
+            } else {
+                return Err("failed to get wolfram key".into());
+            }
+            temp
+        };
+        Ok(Box::new(Module {
+                        commands: map,
+                        api_key: key,
+                    }))
+    }
 
-	fn name(&self) -> &'static str {
-		"Wolfram!Alpha"
-	}
+    fn name(&self) -> &'static str {
+        "Wolfram!Alpha"
+    }
 
-	fn description(&self) -> &'static str {
-		"A command for querying the Wolfram!Alpha service."
-	}
+    fn description(&self) -> &'static str {
+        "A command for querying the Wolfram!Alpha service."
+    }
 
-	fn commands(&self) -> &HashMap<u32, &[&str]> {
-		&self.commands
-	}
+    fn commands(&self) -> &HashMap<u32, &[&str]> {
+        &self.commands
+    }
 
-	fn command_description(&self, _: u32) -> &'static str {
-		"Queries the Wolfram!Alpha service."
-	}
+    fn command_description(&self, _: u32) -> &'static str {
+        "Queries the Wolfram!Alpha service."
+    }
 
-	fn command_help_message(&self, _: u32) -> &'static str {
-		"`!wa <input>` - Queries Wolfram!Alpha with the given input and returns the result. For example, `!wa int sin x / x dx, 0 < x < +inf`."
-	}
+    fn command_help_message(&self, _: u32) -> &'static str {
+        "`!wa <input>` - Queries Wolfram!Alpha with the given input and returns the result. For example, `!wa int sin x / x dx, 0 < x < +inf`."
+    }
 
-	fn handle(&self, bot: &Bot, message: &Message, _id: u32, text: &str) {
-		bot.broadcast_typing(message.channel_id); // This command takes a few seconds to process.
+    fn handle(&self, bot: &Bot, message: &Message, _id: u32, text: &str) {
+        bot.broadcast_typing(message.channel_id); // This command takes a few seconds to process.
 
-		let mut url = WOLFRAMALPHA_API_BASE.clone();
-		url.query_pairs_mut()
-			.append_pair("appid", self.api_key.as_str())
-			.append_pair("input", text);
+        let mut url = WOLFRAMALPHA_API_BASE.clone();
+        url.query_pairs_mut()
+            .append_pair("appid", self.api_key)
+            .append_pair("input", text);
 
-		println!("URL: {}", url.as_str());
+        println!("URL: {}", url.as_str());
 
-		let client = Client::new();
-		match client.get(url.as_str()).send() {
+        let client = Client::new();
+        match client.get(url.as_str()).send() {
 			Ok(result) => {
 				let mut input_interpretation: Option<Pod> = None;
 				let mut results: Option<Pod> = None;
@@ -223,5 +239,5 @@ impl<'a> module::Module for Module<'a> {
 				bot.send(message.channel_id, &format!("Couldn't communicate with http://api.wolframalpha.com. :( ({})", err.description()));
 			}
 		}
-	}
+    }
 }
